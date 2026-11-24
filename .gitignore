@@ -1,0 +1,37 @@
+# Dossiers et fichiers locaux de Terraform
+.terraform/
+.terraform.lock.hcl.bak
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Variables locales ou sensibles (jamais versionnées).
+# Seul envs/prod.tfvars est versionné, et il ne contient AUCUN secret.
+terraform.tfvars
+*.auto.tfvars
+*.secret.tfvars
+*.local.tfvars
+
+# Environnement et identifiants
+.env
+.env.*
+*.pem
+*.pfx
+*.key
+
+# Éditeurs et système
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# draw.io : fichiers temporaires
+*.drawio.bkp
+.$*.drawio
