@@ -45,16 +45,24 @@ Noms partagés entre l'application et l'infrastructure. **On ne les modifie pas 
 | Région Azure | France Central *(à confirmer)* | Godwin |
 | Port de l'application | `8000` | Hafsatou |
 | Sonde de santé | `GET /health` → HTTP 200 | Hafsatou |
-| Image Docker | *à définir* (dans l'ACR) | Hafsatou / Maroua |
+| Image Docker | `Dockerfile` à la racine du dépôt applicatif, utilisateur non root, port 8000. Nom dans l'ACR *à définir* | Hafsatou / Maroua |
 | VNet | `10.0.0.0/16` | Godwin |
 | Sous-réseau app | `10.0.1.0/24` | Godwin |
 | Sous-réseau data | `10.0.2.0/24` | Godwin |
-| Conteneurs Blob | `coffre`, `annonces-photos` | Hafsatou |
-| Tables | `profils`, `etapes`, `annonces` | Hafsatou |
-| Variables d'environnement | `STORAGE_ACCOUNT_NAME`, `KEY_VAULT_URL`, `APPLICATIONINSIGHTS_CONNECTION_STRING` | Hafsatou / Maroua |
+| Conteneurs Blob | `medias-lille` (photos des lieux), `coffre` (créé plus tard, V1), `annonces-photos` *(prévu, pas encore utilisé)* | Hafsatou |
+| Tables | `profils`, `etapes`, `heures`, `annonces` | Hafsatou |
+| Variables d'environnement (lues par l'app) | `STORAGE_MODE=azure`, `AZURE_STORAGE_ACCOUNT_NAME`, `SECRET_KEY` (obligatoire, sans valeur par défaut) | Hafsatou / Maroua |
+| Variables d'environnement (prévues, pas encore lues) | `KEY_VAULT_URL`, `APPLICATIONINSIGHTS_CONNECTION_STRING` | Hafsatou / Maroua |
 | Tags obligatoires | `owner`, `project`, `environment` | Maroua |
 | Nom de l'ACR, du Key Vault | *à définir* | Maroua |
 | Compte de stockage du remote state | *à définir* | Godwin |
+
+Notes sur l'alignement avec l'application (PR #1 du dépôt applicatif) :
+
+- `STORAGE_MODE` vaut `memoire` (défaut), `azurite` ou `azure`. En production, le mettre à `azure` : l'app utilise alors `DefaultAzureCredential` (Managed Identity) avec le compte `AZURE_STORAGE_ACCOUNT_NAME`.
+- `SECRET_KEY` doit être fournie à l'application au démarrage (Key Vault ou variable injectée par Terraform). Sans elle, l'application refuse de démarrer.
+- L'app crée elle-même les tables et le conteneur `medias-lille` au démarrage : la Managed Identity a besoin de `Storage Table Data Contributor` et `Storage Blob Data Contributor`.
+- Le port 8000 est fixé dans le Dockerfile : l'app ne lit pas de variable `PORT`.
 
 ## CI
 
