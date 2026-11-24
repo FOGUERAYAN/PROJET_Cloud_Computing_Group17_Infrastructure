@@ -55,7 +55,7 @@ Noms partagés entre l'application et l'infrastructure. **On ne les modifie pas 
 | Variables d'environnement (prévues, pas encore lues) | `KEY_VAULT_URL`, `APPLICATIONINSIGHTS_CONNECTION_STRING` | Hafsatou / Maroua |
 | Tags obligatoires | `owner`, `project`, `environment` | Maroua |
 | Nom de l'ACR, du Key Vault | *à définir* | Maroua |
-| Compte de stockage du remote state | *à définir* | Godwin |
+| Remote state | groupe `rg-cap90-tfstate`, compte `sttfstatecap90gd`, conteneur `tfstate`, clé `prod.terraform.tfstate` (voir [bootstrap](docs/bootstrap-remote-state.md)) | Godwin |
 
 Notes sur l'alignement avec l'application (PR #1 du dépôt applicatif) :
 
