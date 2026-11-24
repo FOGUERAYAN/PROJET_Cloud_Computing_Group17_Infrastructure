@@ -46,15 +46,4 @@ variable "subnet_data_prefix" {
   default     = "10.0.2.0/24"
 }
 
-variable "app_port" {
-  description = "Port d'écoute de l'application (Gunicorn), défini avec Hafsatou"
-  type        = number
-  default     = 8000
-}
 
-# --- Calcul (P1) ---
-variable "vm_size" {
-  description = "Taille de la VM. La série B est bloquée sur l'abonnement Student en France Central ; plus petite taille autorisée : Standard_F1als_v7 (repli : Standard_D2als_v7)"
-  type        = string
-  default     = "Standard_F1als_v7"
-}
