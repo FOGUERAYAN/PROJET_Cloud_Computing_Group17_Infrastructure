@@ -1,0 +1,76 @@
+name: CI Infrastructure
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: ci-infra-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  terraform:
+    name: terraform
+    runs-on: ubuntu-latest
+    steps:
+      - name: Récupération du code
+        uses: actions/checkout@v4
+
+      - name: Installation de Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+
+      - name: Vérification du formatage (terraform fmt)
+        run: terraform fmt -check -recursive -diff
+
+      - name: Présence d'une configuration à la racine
+        id: config
+        run: |
+          if ls *.tf > /dev/null 2>&1; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Aucun fichier .tf à la racine pour l'instant : init et validate sont ignorés."
+          fi
+
+      - name: Initialisation sans backend (terraform init)
+        if: steps.config.outputs.present == 'true'
+        run: terraform init -backend=false -input=false
+
+      - name: Validation (terraform validate)
+        if: steps.config.outputs.present == 'true'
+        run: terraform validate -no-color
+
+      - name: Installation de TFLint
+        uses: terraform-linters/setup-tflint@v4
+
+      - name: Initialisation des plugins TFLint
+        run: tflint --init
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Analyse statique (tflint)
+        run: tflint --recursive --format compact
+
+  gitleaks:
+    name: gitleaks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Récupération de tout l'historique
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Détection de secrets (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: false
