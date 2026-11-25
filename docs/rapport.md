@@ -38,6 +38,9 @@ Projet Cloud Computing, JUNIA ISEN, équipe 17. Rendu : 7 décembre 2026.
 
 - Service endpoints et network policies sur `snet-data` : ajoutés dans la PR réseau de Godwin, qui **doit être mergée avant** celle du stockage, sinon l'`apply` du stockage échoue.
 - Le NSG de `snet-data` protège les deux private endpoints (Blob et Table).
+- **NSG `nsg-app` (sur `snet-app`)** : seul le port de l'application (8000, variable `app_port`) est ouvert depuis Internet. Aucun port SSH n'est ouvert ; les sondes du Load Balancer passent par la règle par défaut `AllowAzureLoadBalancerInBound`.
+- **NSG `nsg-data` (sur `snet-data`)** : seul le port 443 est autorisé, et uniquement depuis `snet-app` (`10.0.1.0/24`). Une règle `Deny-VNet-Inbound` en priorité 4000 passe avant la règle par défaut `AllowVnetInBound` (65000) ; sans elle, tout le VNet pourrait joindre `snet-data`.
+- **Administration de la VM sans SSH** : à préciser par Godwin (`az vm run-command`, console série ou Azure Bastion, ce dernier étant payant).
 
 ## 6. Ingénierie Cloud Native
 
@@ -65,6 +68,9 @@ Image `python:3.12.16-slim-trixie` à version exacte, utilisateur `cap90` sans p
 
 ### 6.4 Protection de `main` et gouvernance
 
+Les retours de relecture sont écrits dans la review de la PR, avec des remarques bloquantes (à traiter avant merge) et non bloquantes (à prendre en compte ensuite). Plusieurs remarques de relecture ont déjà été reprises par leurs auteurs : par exemple, le NSG de `snet-data` proposé par Godwin répond à la remarque de Rayan sur la PR des service endpoints (autoriser le 443 depuis `snet-app`).
+
+
 Règles sur les deux dépôts :
 
 - Pull Request obligatoire, avec une approbation du code owner (fichier `CODEOWNERS`) ; les approbations sont invalidées par un nouveau commit.
@@ -86,6 +92,7 @@ Le workflow `publish.yml` publie l'image dans l'Azure Container Registry après 
 
 - L'ACR est créé dans le module `security`. Son nom et son *login server* (sortie du module) sont attendus par Rayan (variable `ACR_NAME` du workflow de publication) et par Godwin (VM) : c'est prioritaire.
 - Rôles de l'identité de l'application sur le stockage : `Storage Blob Data Contributor`, `Storage Table Data Contributor` et `Storage Blob Delegator` (liens de partage de 24 h en User Delegation SAS).
+- Key Vault : s'il est limité par un service endpoint plutôt que par un private endpoint dans `snet-data`, il faudra ajouter `Microsoft.KeyVault` en service endpoint sur `snet-app` (à trancher avec Godwin).
 - `SECRET_KEY` de l'application injectée depuis le Key Vault ; chaîne de connexion Application Insights ; choix de l'identité system-assigned ou user-assigned (à confirmer).
 
 ## 8. Analyse des coûts
@@ -102,6 +109,8 @@ Le workflow `publish.yml` publie l'image dans l'Azure Container Registry après 
 - **Dépendances entre membres.** Le nom de l'ACR bloque à la fois la publication de l'image et la configuration de la VM ; la PR réseau doit être mergée avant celle du stockage. Un contrat d'interface écrit et mis à jour dès le début a limité les écarts de noms entre l'application et l'infrastructure, mais ces dépendances d'ordre restent à planifier.
 - **Contrat d'interface.** Les noms de variables d'environnement de l'application ne correspondaient pas à ceux prévus au départ (`STORAGE_ACCOUNT_NAME` devenu `AZURE_STORAGE_ACCOUNT_NAME`, ajout de `STORAGE_MODE` et `SECRET_KEY`) : le contrat a été aligné sur le code.
 - **Points de sécurité applicatifs restant à traiter** : pas de protection CSRF sur les formulaires et pas de cookie de session `Secure` ; le risque est limité (pas de mot de passe) mais à documenter.
+- **Application exposée en HTTP clair.** Le port 8000 est ouvert à tout Internet, derrière le Load Balancer, sans TLS. C'est cohérent avec le périmètre du projet, mais un déploiement réel demanderait un certificat et un point d'entrée HTTPS (ou un service frontal dédié).
+- **Règles de sortie par défaut.** Seules les règles entrantes sont restreintes par les NSG ; le trafic sortant reste ouvert (accès à l'ACR, à Internet).
 - **Validation réelle.** Les vérifications faites en CI et en local (`terraform validate`, `tflint`, tests) ne remplacent pas un `apply` : la création des tables par l'API ARM et les liens de partage 24 h en User Delegation SAS ne seront confirmés qu'une fois l'infrastructure déployée.
 
 ## 10. Annexes
