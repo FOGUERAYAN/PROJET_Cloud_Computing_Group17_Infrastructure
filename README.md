@@ -47,16 +47,18 @@ Noms partagés entre l'application et l'infrastructure. **On ne les modifie pas 
 | Région Azure | `francecentral` | Godwin |
 | Port de l'application | `8000` (fixé dans le Dockerfile, pas de variable `PORT`) | Hafsatou |
 | Sonde de santé | `GET /health` → HTTP 200 | Hafsatou |
-| Image Docker | `<acr>.azurecr.io/cap90:<sha du commit>` (un tag par commit, pas de `latest`). Utilisateur non root, port 8000. Nom de l'ACR *à définir* | Hafsatou / Maroua |
+| Image Docker | `<acr>.azurecr.io/cap90:<sha du commit>` (un tag par commit, pas de `latest`). Utilisateur non root, port 8000. Nom de l'ACR *à définir* (variable GitHub `ACR_NAME`) | Hafsatou / Maroua |
 | VNet | `10.0.0.0/16` | Godwin |
 | Sous-réseau app | `snet-app` `10.0.1.0/24` | Godwin |
 | Sous-réseau data | `snet-data` `10.0.2.0/24` | Godwin |
-| Service endpoint | `Microsoft.Storage` sur `snet-app` et `snet-data` | Godwin |
-| Compte de stockage | `stcap90prodfrc` (`st` + `name_prefix` + `frc`, avec `name_prefix = "cap90prod"`) | Hafsatou |
+| Service endpoint | `Microsoft.Storage` sur `snet-app` et `snet-data` ; network policies activées sur `snet-data` (PR réseau de Godwin, à merger **avant** celle du stockage) | Godwin |
+| Private endpoints | `blob` et `table` du compte de stockage, dans `snet-data`, avec les zones DNS privées `privatelink.blob.core.windows.net` et `privatelink.table.core.windows.net` ; le NSG de `snet-data` protège les deux | Hafsatou / Godwin |
+| Compte de stockage | `stcap90prodfrc` (`st` + `name_prefix` + `frc`, avec `name_prefix = "cap90prod"`), réplication ZRS (disponibilité vérifiée en `francecentral` sur l'abonnement) | Hafsatou |
 | Conteneurs Blob | `coffre`, `annonces-photos`, `medias-lille` | Hafsatou |
 | Tables | `profils`, `etapes`, `annonces`, `heures` | Hafsatou |
 | Tags obligatoires | `owner`, `project`, `environment` | Maroua |
-| Nom de l'ACR, du Key Vault | *à définir* | Maroua |
+| ACR | créé dans le module `security` ; nom *à définir* (prioritaire : débloque `ACR_NAME` pour la CI et le *login server* pour la VM) | Maroua |
+| Key Vault | nom *à définir* | Maroua |
 | Remote state | groupe `rg-cap90-tfstate`, compte `sttfstatecap90gd`, conteneur `tfstate`, clé `prod.terraform.tfstate` (voir [bootstrap](docs/bootstrap-remote-state.md)) | Godwin |
 
 ### Variables d'environnement du conteneur
@@ -75,17 +77,20 @@ Noms partagés entre l'application et l'infrastructure. **On ne les modifie pas 
 
 | Sortie | Fournie par |
 |---|---|
-| `module.network.snet_app_id`, `module.network.snet_data_id` | Godwin |
+| `module.network.subnet_app_id`, `module.network.subnet_data_id` (et `azurerm_resource_group.main` pour le groupe de ressources) | Godwin |
 | `module.security.app_identity_principal_id` | Maroua |
+| nom et *login server* de l'ACR (noms des sorties *à confirmer*) | Maroua |
 | `storage_account_name`, `storage_account_id`, `primary_blob_endpoint`, `container_names`, `table_names` | Hafsatou |
 
-Variable racine `deployer_ips` (`list(string)`) : IP du déployeur autorisées sur le compte de stockage, renseignée **hors Git** (`TF_VAR_deployer_ips='["x.x.x.x"]'`).
+Variable racine `deployer_ips` (`list(string)`) : IP du déployeur autorisées sur le compte de stockage. Elle est créée dans la PR du module `storage` (sinon `tflint` signale une variable inutilisée), saisie **sans `/32`** (Azure refuse ce suffixe) et renseignée **hors Git** (`TF_VAR_deployer_ips='["x.x.x.x"]'`).
+
+Le câblage du module `storage` dans le `main.tf` racine est fait par Hafsatou, avec les noms de Godwin (`module.network.subnet_data_id`, `module.network.subnet_app_id`, `azurerm_resource_group.main`). Ordre de merge : réseau (Godwin), puis stockage (Hafsatou), sinon l'`apply` du stockage échoue.
 
 ### Notes
 
 - `STORAGE_MODE` vaut `memoire` (défaut), `azurite` ou `azure`. En production : `azure`, avec `DefaultAzureCredential` (identité managée).
 - Rôles de l'identité sur le compte de stockage : `Storage Blob Data Contributor`, `Storage Table Data Contributor` et `Storage Blob Delegator` (liens de partage de 24 h en User Delegation SAS).
-- Le compte de stockage refuse tout accès par défaut (`default_action = Deny`) : il faut le service endpoint sur les sous-réseaux et `deployer_ips` pour le déployeur.
+- Le compte de stockage refuse tout accès par défaut (`default_action = Deny`) : l'application y accède par les private endpoints de `snet-data` (et le service endpoint sur les sous-réseaux), le déployeur par `deployer_ips`.
 
 ## CI
 
