@@ -33,13 +33,19 @@ module "network" {
   subnet_data_prefix = var.subnet_data_prefix
 }
 
-# --- P1 : calcul (VM + Function) --- à brancher en phase 2
-# module "compute" {
-#   source = "./modules/compute"
-#   ...
-#   subnet_app_id         = module.network.subnet_app_id
-#   app_identity_id       = module.security.app_identity_id   # identité créée par Maroua
-# }
+# --- P1 : calcul (VM ; la Function viendra ensuite) ---
+module "compute" {
+  source = "./modules/compute"
+
+  name_suffix         = local.name_suffix
+  location            = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
+  tags                = local.tags
+
+  subnet_app_id      = module.network.subnet_app_id
+  lb_backend_pool_id = module.network.lb_backend_pool_id
+  # Identité managée de Maroua (module.security) à brancher quand elle sera prête
+}
 
 # --- P3 (Hafsatou) : stockage ---
 # module "storage" { source = "./modules/storage" ... }
