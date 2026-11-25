@@ -1,5 +1,5 @@
 # Phase 1 : VNet + 2 sous-réseaux.
-# Phase 2 : NSG, IP publique, Load Balancer, passerelle NAT (à ajouter ici).
+# Phase 2 : NSG (ici), puis IP publique, Load Balancer, passerelle NAT.
 
 resource "azurerm_virtual_network" "main" {
   name                = "vnet-${var.name_suffix}"
@@ -31,4 +31,70 @@ resource "azurerm_subnet" "data" {
 
   # Active le filtrage NSG sur le trafic vers les private endpoints
   private_endpoint_network_policies = "Enabled"
+}
+
+# ---------- NSG snet-app : seulement le port de l'app depuis Internet ----------
+# Pas de port 22 (SSH) : tout le reste est bloqué par la règle par défaut DenyAllInBound.
+# Les sondes du Load Balancer passent grâce à la règle par défaut AllowAzureLoadBalancerInBound.
+resource "azurerm_network_security_group" "app" {
+  name                = "nsg-app-${var.name_suffix}"
+  location            = var.location
+  resource_group_name = var.resource_group_name
+  tags                = var.tags
+
+  security_rule {
+    name                       = "Allow-App-From-Internet"
+    priority                   = 100
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = tostring(var.app_port)
+    source_address_prefix      = "Internet"
+    destination_address_prefix = var.subnet_app_prefix
+  }
+}
+
+resource "azurerm_subnet_network_security_group_association" "app" {
+  subnet_id                 = azurerm_subnet.app.id
+  network_security_group_id = azurerm_network_security_group.app.id
+}
+
+# ---------- NSG snet-data : 443 depuis snet-app uniquement ----------
+# La règle Deny-VNet-Inbound (4000) passe avant la règle par défaut AllowVnetInBound (65000),
+# sinon tout le VNet pourrait joindre snet-data.
+resource "azurerm_network_security_group" "data" {
+  name                = "nsg-data-${var.name_suffix}"
+  location            = var.location
+  resource_group_name = var.resource_group_name
+  tags                = var.tags
+
+  security_rule {
+    name                       = "Allow-HTTPS-From-App"
+    priority                   = 100
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "443"
+    source_address_prefix      = var.subnet_app_prefix
+    destination_address_prefix = var.subnet_data_prefix
+  }
+
+  security_rule {
+    name                       = "Deny-VNet-Inbound"
+    priority                   = 4000
+    direction                  = "Inbound"
+    access                     = "Deny"
+    protocol                   = "*"
+    source_port_range          = "*"
+    destination_port_range     = "*"
+    source_address_prefix      = "VirtualNetwork"
+    destination_address_prefix = "*"
+  }
+}
+
+resource "azurerm_subnet_network_security_group_association" "data" {
+  subnet_id                 = azurerm_subnet.data.id
+  network_security_group_id = azurerm_network_security_group.data.id
 }
