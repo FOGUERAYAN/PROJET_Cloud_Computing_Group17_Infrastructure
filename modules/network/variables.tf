@@ -25,3 +25,9 @@ variable "subnet_app_prefix" {
 variable "subnet_data_prefix" {
   type = string
 }
+
+variable "app_port" {
+  description = "Port de l'application Flask (gunicorn)"
+  type        = number
+  default     = 8000
+}
