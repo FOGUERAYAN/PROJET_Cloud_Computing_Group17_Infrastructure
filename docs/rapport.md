@@ -40,6 +40,8 @@ Projet Cloud Computing, JUNIA ISEN, équipe 17. Rendu : 7 décembre 2026.
 - Le NSG de `snet-data` protège les deux private endpoints (Blob et Table).
 - **NSG `nsg-app` (sur `snet-app`)** : seul le port de l'application (8000, variable `app_port`) est ouvert depuis Internet. Aucun port SSH n'est ouvert ; les sondes du Load Balancer passent par la règle par défaut `AllowAzureLoadBalancerInBound`.
 - **NSG `nsg-data` (sur `snet-data`)** : seul le port 443 est autorisé, et uniquement depuis `snet-app` (`10.0.1.0/24`). Une règle `Deny-VNet-Inbound` en priorité 4000 passe avant la règle par défaut `AllowVnetInBound` (65000) ; sans elle, tout le VNet pourrait joindre `snet-data`.
+- **Entrée publique** : une IP publique Standard statique (nom DNS `cap90-prod-frc.francecentral.cloudapp.azure.com`) et un Load Balancer Standard. La règle `rule-http-80` envoie le port 80 public vers le port 8000 de la VM ; la sonde `probe-health` interroge `GET /health` sur le port 8000 et le LB n'envoie du trafic qu'aux VM qui répondent. Le Load Balancer et l'IP ne sont appliqués qu'avec la VM, pour ne pas payer sans backend.
+- **Sortie Internet** : la VM n'a pas d'IP publique. Elle sort (installation de Docker, image de l'ACR) par une passerelle NAT Standard associée à `snet-app` uniquement ; `snet-data` n'en a pas besoin (private endpoints). La règle du LB désactive donc son propre SNAT sortant (`disable_outbound_snat = true`) : le Load Balancer et la NAT forment un ensemble qui doit être appliqué ensemble, sans quoi la VM n'a aucune sortie.
 - **Administration de la VM sans SSH** : à préciser par Godwin (`az vm run-command`, console série ou Azure Bastion, ce dernier étant payant).
 
 ## 6. Ingénierie Cloud Native
@@ -97,7 +99,11 @@ Le workflow `publish.yml` publie l'image dans l'Azure Container Registry après 
 
 ## 8. Analyse des coûts
 
-*(Maroua)*
+*(Maroua. Éléments déjà connus à intégrer)*
+
+- Réseau : la passerelle NAT Standard coûte environ 33 $ par mois, plus son IP publique ; le Load Balancer Standard et son IP publique s'ajoutent. L'`apply` est fait avec la VM, puis un `destroy` est prévu après la correction, pour limiter la consommation du crédit Azure for Students.
+- Alternative à étudier : une *outbound rule* sur le Load Balancer donnerait la sortie Internet sans passerelle NAT, pour un coût moindre, avec le risque d'épuisement des ports SNAT.
+- Stockage : ZRS (plus cher que LRS), conservé après vérification de sa disponibilité.
 
 ## 9. Limites et enseignements tirés
 
@@ -109,7 +115,7 @@ Le workflow `publish.yml` publie l'image dans l'Azure Container Registry après 
 - **Dépendances entre membres.** Le nom de l'ACR bloque à la fois la publication de l'image et la configuration de la VM ; la PR réseau doit être mergée avant celle du stockage. Un contrat d'interface écrit et mis à jour dès le début a limité les écarts de noms entre l'application et l'infrastructure, mais ces dépendances d'ordre restent à planifier.
 - **Contrat d'interface.** Les noms de variables d'environnement de l'application ne correspondaient pas à ceux prévus au départ (`STORAGE_ACCOUNT_NAME` devenu `AZURE_STORAGE_ACCOUNT_NAME`, ajout de `STORAGE_MODE` et `SECRET_KEY`) : le contrat a été aligné sur le code.
 - **Points de sécurité applicatifs restant à traiter** : pas de protection CSRF sur les formulaires et pas de cookie de session `Secure` ; le risque est limité (pas de mot de passe) mais à documenter.
-- **Application exposée en HTTP clair.** Le port 8000 est ouvert à tout Internet, derrière le Load Balancer, sans TLS. C'est cohérent avec le périmètre du projet, mais un déploiement réel demanderait un certificat et un point d'entrée HTTPS (ou un service frontal dédié).
+- **Application exposée en HTTP clair.** L'entrée publique est le port 80 du Load Balancer, redirigé vers le port 8000 de la VM, sans TLS ni redirection vers HTTPS. C'est cohérent avec le périmètre du projet, mais un déploiement réel demanderait un certificat et un point d'entrée HTTPS (ou un service frontal dédié).
 - **Règles de sortie par défaut.** Seules les règles entrantes sont restreintes par les NSG ; le trafic sortant reste ouvert (accès à l'ACR, à Internet).
 - **Validation réelle.** Les vérifications faites en CI et en local (`terraform validate`, `tflint`, tests) ne remplacent pas un `apply` : la création des tables par l'API ARM et les liens de partage 24 h en User Delegation SAS ne seront confirmés qu'une fois l'infrastructure déployée.
 

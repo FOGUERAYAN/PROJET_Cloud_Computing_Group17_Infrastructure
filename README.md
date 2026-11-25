@@ -46,7 +46,9 @@ Noms partagés entre l'application et l'infrastructure. **On ne les modifie pas 
 |---|---|---|
 | Région Azure | `francecentral` | Godwin |
 | Port de l'application | `8000` (fixé dans le Dockerfile, pas de variable `PORT`) | Hafsatou |
-| Sonde de santé | `GET /health` → HTTP 200 | Hafsatou |
+| Sonde de santé | `GET /health` → HTTP 200 (sonde HTTP du Load Balancer, port 8000) | Hafsatou |
+| Entrée publique | IP publique Standard et Load Balancer Standard : **port 80 public → port 8000 de la VM**, en HTTP. Nom DNS `cap90-prod-frc.francecentral.cloudapp.azure.com`, sortie racine `app_url` | Godwin |
+| Sortie Internet de la VM | passerelle NAT sur `snet-app` ; la VM n'a pas d'IP publique ; `disable_outbound_snat = true` sur la règle du LB | Godwin |
 | Image Docker | `<acr>.azurecr.io/cap90:<sha du commit>` (un tag par commit, pas de `latest`). Utilisateur non root, port 8000. Nom de l'ACR *à définir* (variable GitHub `ACR_NAME`) | Hafsatou / Maroua |
 | VNet | `10.0.0.0/16` | Godwin |
 | Sous-réseau app | `snet-app` `10.0.1.0/24` | Godwin |
@@ -77,7 +79,7 @@ Noms partagés entre l'application et l'infrastructure. **On ne les modifie pas 
 
 | Sortie | Fournie par |
 |---|---|
-| `module.network.subnet_app_id`, `module.network.subnet_data_id` (et `azurerm_resource_group.main` pour le groupe de ressources) | Godwin |
+| `module.network.subnet_app_id`, `module.network.subnet_data_id`, `module.network.lb_backend_pool_id`, `module.network.app_fqdn` (et `azurerm_resource_group.main` pour le groupe de ressources) ; sortie racine `app_url` | Godwin |
 | `module.security.app_identity_principal_id` | Maroua |
 | nom et *login server* de l'ACR (noms des sorties *à confirmer*) | Maroua |
 | `storage_account_name`, `storage_account_id`, `primary_blob_endpoint`, `container_names`, `table_names` | Hafsatou |
