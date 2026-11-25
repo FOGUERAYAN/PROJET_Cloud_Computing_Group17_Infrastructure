@@ -19,3 +19,8 @@ output "subnet_data_id" {
 }
 
 # À ajouter en phase 2 : app_url (IP publique du Load Balancer), noms de la VM et de la Function.
+output "app_url" {
+  description = "URL publique de l'application (via le Load Balancer)"
+  value       = "http://${module.network.app_fqdn}"
+}
+
