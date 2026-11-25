@@ -34,35 +34,58 @@ Infrastructure as Code du projet Cloud Computing (JUNIA ISEN, équipe 17). Elle 
 └── CONTRIBUTING.md
 ```
 
-Les fichiers racine (`backend.tf`, `providers.tf`, `main.tf`, `variables.tf`, `outputs.tf`) et `envs/prod.tfvars` sont ajoutés par Godwin.
+Les fichiers racine (`backend.tf`, `providers.tf`, `main.tf`, `variables.tf`, `outputs.tf`) et `envs/prod.tfvars` sont ceux de Godwin. Le module racine est à la **racine du dépôt** : les appels de modules se font dans `main.tf`.
 
 ## Contrat d'interface
 
 Noms partagés entre l'application et l'infrastructure. **On ne les modifie pas sans prévenir toute l'équipe** (PR + message sur le groupe).
 
+### Valeurs
+
 | Élément | Valeur | Fourni par |
 |---|---|---|
-| Région Azure | France Central *(à confirmer)* | Godwin |
-| Port de l'application | `8000` | Hafsatou |
+| Région Azure | `francecentral` | Godwin |
+| Port de l'application | `8000` (fixé dans le Dockerfile, pas de variable `PORT`) | Hafsatou |
 | Sonde de santé | `GET /health` → HTTP 200 | Hafsatou |
-| Image Docker | `Dockerfile` à la racine du dépôt applicatif, utilisateur non root, port 8000. Nom dans l'ACR *à définir* | Hafsatou / Maroua |
+| Image Docker | `<acr>.azurecr.io/cap90:<sha du commit>` (un tag par commit, pas de `latest`). Utilisateur non root, port 8000. Nom de l'ACR *à définir* | Hafsatou / Maroua |
 | VNet | `10.0.0.0/16` | Godwin |
-| Sous-réseau app | `10.0.1.0/24` | Godwin |
-| Sous-réseau data | `10.0.2.0/24` | Godwin |
-| Conteneurs Blob | `medias-lille` (photos des lieux), `coffre` (créé plus tard, V1), `annonces-photos` *(prévu, pas encore utilisé)* | Hafsatou |
-| Tables | `profils`, `etapes`, `heures`, `annonces` | Hafsatou |
-| Variables d'environnement (lues par l'app) | `STORAGE_MODE=azure`, `AZURE_STORAGE_ACCOUNT_NAME`, `SECRET_KEY` (obligatoire, sans valeur par défaut) | Hafsatou / Maroua |
-| Variables d'environnement (prévues, pas encore lues) | `KEY_VAULT_URL`, `APPLICATIONINSIGHTS_CONNECTION_STRING` | Hafsatou / Maroua |
+| Sous-réseau app | `snet-app` `10.0.1.0/24` | Godwin |
+| Sous-réseau data | `snet-data` `10.0.2.0/24` | Godwin |
+| Service endpoint | `Microsoft.Storage` sur `snet-app` et `snet-data` | Godwin |
+| Compte de stockage | `stcap90prodfrc` (`st` + `name_prefix` + `frc`, avec `name_prefix = "cap90prod"`) | Hafsatou |
+| Conteneurs Blob | `coffre`, `annonces-photos`, `medias-lille` | Hafsatou |
+| Tables | `profils`, `etapes`, `annonces`, `heures` | Hafsatou |
 | Tags obligatoires | `owner`, `project`, `environment` | Maroua |
 | Nom de l'ACR, du Key Vault | *à définir* | Maroua |
 | Remote state | groupe `rg-cap90-tfstate`, compte `sttfstatecap90gd`, conteneur `tfstate`, clé `prod.terraform.tfstate` (voir [bootstrap](docs/bootstrap-remote-state.md)) | Godwin |
 
-Notes sur l'alignement avec l'application (PR #1 du dépôt applicatif) :
+### Variables d'environnement du conteneur
 
-- `STORAGE_MODE` vaut `memoire` (défaut), `azurite` ou `azure`. En production, le mettre à `azure` : l'app utilise alors `DefaultAzureCredential` (Managed Identity) avec le compte `AZURE_STORAGE_ACCOUNT_NAME`.
-- `SECRET_KEY` doit être fournie à l'application au démarrage (Key Vault ou variable injectée par Terraform). Sans elle, l'application refuse de démarrer.
-- L'app crée elle-même les tables et le conteneur `medias-lille` au démarrage : la Managed Identity a besoin de `Storage Table Data Contributor` et `Storage Blob Data Contributor`.
-- Le port 8000 est fixé dans le Dockerfile : l'app ne lit pas de variable `PORT`.
+| Variable | Valeur | Statut | Fournie par |
+|---|---|---|---|
+| `STORAGE_MODE` | `azure` | lue par l'app | Godwin (compute) |
+| `AZURE_STORAGE_ACCOUNT_NAME` | `module.storage.storage_account_name` (remplace `STORAGE_ACCOUNT_NAME`) | lue par l'app | Hafsatou |
+| `SECRET_KEY` | injectée depuis le Key Vault, obligatoire (l'app refuse de démarrer sans elle) | lue par l'app | Maroua |
+| `KEY_VAULT_URL` | URL du Key Vault | prévue, pas encore lue | Maroua |
+| `APPLICATIONINSIGHTS_CONNECTION_STRING` | chaîne de connexion Application Insights | prévue, pas encore lue | Maroua |
+| `AZURE_CLIENT_ID` | client ID de l'identité | seulement si l'identité est user-assigned (lu par `DefaultAzureCredential`) | Maroua |
+| `PHOTOS_CONTACT` | contact de l'équipe | facultative (script de photos, hors VM) | Hafsatou |
+
+### Sorties attendues des modules
+
+| Sortie | Fournie par |
+|---|---|
+| `module.network.snet_app_id`, `module.network.snet_data_id` | Godwin |
+| `module.security.app_identity_principal_id` | Maroua |
+| `storage_account_name`, `storage_account_id`, `primary_blob_endpoint`, `container_names`, `table_names` | Hafsatou |
+
+Variable racine `deployer_ips` (`list(string)`) : IP du déployeur autorisées sur le compte de stockage, renseignée **hors Git** (`TF_VAR_deployer_ips='["x.x.x.x"]'`).
+
+### Notes
+
+- `STORAGE_MODE` vaut `memoire` (défaut), `azurite` ou `azure`. En production : `azure`, avec `DefaultAzureCredential` (identité managée).
+- Rôles de l'identité sur le compte de stockage : `Storage Blob Data Contributor`, `Storage Table Data Contributor` et `Storage Blob Delegator` (liens de partage de 24 h en User Delegation SAS).
+- Le compte de stockage refuse tout accès par défaut (`default_action = Deny`) : il faut le service endpoint sur les sous-réseaux et `deployer_ips` pour le déployeur.
 
 ## CI
 
