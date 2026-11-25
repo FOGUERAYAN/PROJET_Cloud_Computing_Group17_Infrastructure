@@ -1,6 +1,6 @@
 # Rapport de rendu
 
-Le rapport final est placé dans ce dossier (Markdown ou PDF). Les schémas draw.io (sources `.drawio` et exports `.png`) sont dans `diagrams/`.
+Le rapport est rédigé dans [`rapport.md`](rapport.md) (export PDF au rendu). Les schémas draw.io (sources `.drawio` et exports `.png`) sont dans `diagrams/`.
 
 | # | Section | Rédaction |
 |---|---|---|
