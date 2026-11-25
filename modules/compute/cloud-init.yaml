@@ -1,0 +1,18 @@
+#cloud-config
+# Phase de test : nginx sur le port de l'app, avec une page /health pour la sonde du LB.
+# Sera remplacé par l'image Cap90 depuis l'ACR.
+package_update: true
+packages:
+  - docker.io
+
+write_files:
+  - path: /opt/www/index.html
+    content: |
+      <h1>Cap90 - la VM repond derriere le Load Balancer</h1>
+  - path: /opt/www/health
+    content: |
+      ok
+
+runcmd:
+  - systemctl enable --now docker
+  - docker run -d --name web --restart always -p ${app_port}:80 -v /opt/www:/usr/share/nginx/html:ro nginx:alpine
