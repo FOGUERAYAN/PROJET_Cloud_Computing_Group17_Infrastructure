@@ -15,12 +15,20 @@ resource "azurerm_subnet" "app" {
   resource_group_name  = var.resource_group_name
   virtual_network_name = azurerm_virtual_network.main.name
   address_prefixes     = [var.subnet_app_prefix]
+
+  # Requis par les règles réseau du compte de stockage (module storage)
+  service_endpoints = ["Microsoft.Storage"]
 }
 
-# Sous-réseau data : accès privé au stockage et au Key Vault
+# Sous-réseau data : points de terminaison privés du stockage et du Key Vault
 resource "azurerm_subnet" "data" {
   name                 = "snet-data"
   resource_group_name  = var.resource_group_name
   virtual_network_name = azurerm_virtual_network.main.name
   address_prefixes     = [var.subnet_data_prefix]
+
+  service_endpoints = ["Microsoft.Storage"]
+
+  # Active le filtrage NSG sur le trafic vers les private endpoints
+  private_endpoint_network_policies = "Enabled"
 }
