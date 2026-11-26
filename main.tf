@@ -42,7 +42,24 @@ module "network" {
 # }
 
 # --- P3 (Hafsatou) : stockage ---
-# module "storage" { source = "./modules/storage" ... }
+module "storage" {
+  source = "./modules/storage"
+
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
+  tags                = local.tags
+
+  subnet_data_id     = module.network.subnet_data_id
+  allowed_subnet_ids = [module.network.subnet_app_id, module.network.subnet_data_id]
+
+  # var.deployer_ips n'existe pas encore à la racine : liste vide pour l'instant.
+  allowed_ips = []
+
+  # RBAC attribué par le module sécurité (Maroua), identité pas encore créée.
+  principal_ids = []
+
+  name_prefix = "cap90prod" # stcap90prodfrc, ZRS
+}
 
 # --- P2 (Maroua) : sécurité et supervision ---
 # module "security"   { source = "./modules/security" ... }

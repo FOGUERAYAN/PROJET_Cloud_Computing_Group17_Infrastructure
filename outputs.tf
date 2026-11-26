@@ -24,3 +24,19 @@ output "app_url" {
   value       = "http://${module.network.app_fqdn}"
 }
 
+# --- Stockage (P3) : aucune clé exposée ---
+output "storage_account_name" {
+  description = "Nom du compte de stockage (AZURE_STORAGE_ACCOUNT_NAME de l'application)"
+  value       = module.storage.storage_account_name
+}
+
+output "storage_account_id" {
+  description = "ID ARM du compte de stockage (portée RBAC pour le module sécurité)"
+  value       = module.storage.storage_account_id
+}
+
+output "primary_blob_endpoint" {
+  description = "Point de terminaison Blob principal"
+  value       = module.storage.primary_blob_endpoint
+}
+
