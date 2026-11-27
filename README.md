@@ -93,6 +93,7 @@ Le câblage du module `storage` dans le `main.tf` racine est fait par Hafsatou, 
 ### Calcul (module `compute`)
 
 - VM Ubuntu 24.04 Gen2 `vm-cap90-prod-frc` (`Standard_F1als_v7`, la série B est bloquée sur Azure for Students), carte réseau dans `snet-app` **sans IP publique**, membre du pool `bepool-app`. Aucun port 22 ouvert : la clé SSH est générée par Terraform (`tls_private_key`, présente uniquement dans le state) et l'accès d'urgence se fait par la console série.
+- **VM Spot** (`priority = "Spot"`, `eviction_policy = "Deallocate"`, `max_bid_price = -1`) : Azure for Students a un quota de 0 vCPU sur la famille `Falsv7` (demande d'augmentation refusée), mais 3 vCPU de quota *low-priority* utilisables en Spot. En cas d'éviction la VM est éteinte, pas supprimée : l'application est indisponible jusqu'à `az vm start`. Vérifier que la VM tourne avant la démo.
 - Identité : `SystemAssigned` pour l'instant. Elle doit passer en `UserAssigned` avec `identity_ids = [module.security.app_identity_id]` quand le module `security` sera mergé, et `vm_principal_id` doit alors venir de `module.security.app_identity_principal_id`.
 - Phase de test : le `cloud-init` lance nginx sur le port 8000 avec une page `/health`, pour valider Internet → LB → NSG → VM avant l'image Cap90 de l'ACR.
 - La VM a besoin de la sortie NAT (installation de Docker, puis pull de l'image) : LB, NAT et VM sont appliqués ensemble.
