@@ -36,7 +36,7 @@ Projet Cloud Computing, JUNIA ISEN, équipe 17. Rendu : 7 décembre 2026.
 - Pas de port 22 : clé SSH générée par Terraform (`tls_private_key`), accès d'urgence par la console série (boot diagnostics). La clé privée n'est que dans le state (backend distant protégé), jamais dans Git.
 - Identité managée `SystemAssigned` en attendant le module `security` ; elle doit passer en `UserAssigned` (identité de Maroua) pour que les rôles Storage et Key Vault s'appliquent à la bonne identité.
 - Phase de test : `cloud-init` installe Docker et lance nginx sur le port 8000 avec `/health`, pour valider toute la chaîne avant l'image Cap90.
-- À vérifier à l'`apply` : disponibilité et quota de `Standard_F1als_v7` avec disque NVMe en francecentral (le `plan` ne le vérifie pas).
+- **Quota et VM Spot.** L'`apply` a créé le LB, la NAT et le service endpoint, mais pas la VM : l'abonnement Azure for Students a un quota de 0 vCPU sur la famille `Falsv7` (francecentral), la demande d'augmentation a été refusée automatiquement et les autres tailles sont soit sans quota, soit bloquées (`NotAvailableForSubscription`). Le plan ne détectait pas ce quota. Solution retenue (PR #18) : une VM **Spot** de même taille, qui consomme le quota *low-priority* (3 vCPU). Paramètres : `eviction_policy = "Deallocate"` (éviction = VM éteinte, pas supprimée, redémarrage par `az vm start`) et `max_bid_price = -1` (jamais plus que le prix normal).
 
 ## 5. Conception du réseau
 
@@ -107,6 +107,8 @@ Le workflow `publish.yml` publie l'image dans l'Azure Container Registry après 
 
 *(Maroua. Éléments déjà connus à intégrer)*
 
+- Calcul : la VM est en Spot (même taille `Standard_F1als_v7`), nettement moins chère qu'une VM à la demande ; elle est aussi la seule option possible avec le quota de l'abonnement étudiant.
+
 - Réseau : la passerelle NAT Standard coûte environ 33 $ par mois, plus son IP publique ; le Load Balancer Standard et son IP publique s'ajoutent. L'`apply` est fait avec la VM, puis un `destroy` est prévu après la correction, pour limiter la consommation du crédit Azure for Students.
 - Alternative à étudier : une *outbound rule* sur le Load Balancer donnerait la sortie Internet sans passerelle NAT, pour un coût moindre, avec le risque d'épuisement des ports SNAT.
 - Stockage : ZRS (plus cher que LRS), conservé après vérification de sa disponibilité.
@@ -123,6 +125,7 @@ Le workflow `publish.yml` publie l'image dans l'Azure Container Registry après 
 - **Points de sécurité applicatifs restant à traiter** : pas de protection CSRF sur les formulaires et pas de cookie de session `Secure` ; le risque est limité (pas de mot de passe) mais à documenter.
 - **Application exposée en HTTP clair.** L'entrée publique est le port 80 du Load Balancer, redirigé vers le port 8000 de la VM, sans TLS ni redirection vers HTTPS. C'est cohérent avec le périmètre du projet, mais un déploiement réel demanderait un certificat et un point d'entrée HTTPS (ou un service frontal dédié).
 - **Règles de sortie par défaut.** Seules les règles entrantes sont restreintes par les NSG ; le trafic sortant reste ouvert (accès à l'ACR, à Internet).
+- **Quota de l'abonnement et VM Spot.** Le quota de calcul à 0 sur la famille de VM choisie n'était visible qu'à l'`apply`. Avec une VM Spot, Azure peut éteindre la VM s'il manque de capacité : l'application est alors indisponible jusqu'à son redémarrage, ce qui est acceptable pour ce projet mais pas pour une production. Une VM à la demande ou un VMSS avec plusieurs instances serait préférable avec un quota normal.
 - **Validation réelle.** Les vérifications faites en CI et en local (`terraform validate`, `tflint`, tests) ne remplacent pas un `apply` : la création des tables par l'API ARM et les liens de partage 24 h en User Delegation SAS ne seront confirmés qu'une fois l'infrastructure déployée.
 
 ## 10. Annexes
@@ -135,6 +138,7 @@ Le workflow `publish.yml` publie l'image dans l'Azure Container Registry après 
 |---|---|---|---|
 | 24/11/2026 | Remote state (groupe, compte de stockage, conteneur) | Godwin | [`bootstrap-remote-state.md`](bootstrap-remote-state.md) |
 | 25/11/2026 | Tentative d'application Entra ID (refusée), puis groupe `rg-cap90-ci`, identité `id-cap90-github` et identifiant fédéré | Rayan | [`oidc-github-azure.md`](oidc-github-azure.md) |
+| 27/11/2026 | `apply` partiel : LB, NAT et service endpoint Key Vault créés ; création de la VM refusée (quota 0 vCPU), test manuel d'une VM Spot dans un groupe temporaire `rg-test-spot` (supprimé), demande d'augmentation de quota refusée | Godwin | PR #15 et #18 |
 
 ### B. Usage d'assistants d'intelligence artificielle
 
