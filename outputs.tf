@@ -18,6 +18,11 @@ output "subnet_data_id" {
   value       = module.network.subnet_data_id
 }
 
+output "subnet_func_id" {
+  description = "ID du sous-réseau de la Function (pour allowed_subnet_ids d'Hafsatou)"
+  value       = module.network.subnet_func_id
+}
+
 output "app_url" {
   description = "URL publique de l'application (via le Load Balancer)"
   value       = "http://${module.network.app_fqdn}"

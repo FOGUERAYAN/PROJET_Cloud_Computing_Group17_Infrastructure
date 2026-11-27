@@ -1,4 +1,4 @@
-# Réseau : VNet, 2 sous-réseaux et leurs NSG.
+# Réseau : VNet, 3 sous-réseaux (app, data, func) et les NSG de app et data.
 # Le Load Balancer est dans lb.tf, la passerelle NAT dans nat.tf.
 
 resource "azurerm_virtual_network" "main" {
@@ -31,6 +31,26 @@ resource "azurerm_subnet" "data" {
 
   # Active le filtrage NSG sur le trafic vers les private endpoints
   private_endpoint_network_policies = "Enabled"
+}
+
+# Sous-réseau func : intégration VNet de la Function (plan Flex Consumption).
+# Délégué à Microsoft.App/environments (obligatoire pour Flex).
+# Service endpoint Storage : la Function passe le pare-feu du stockage d'Hafsatou.
+resource "azurerm_subnet" "func" {
+  name                 = "snet-func"
+  resource_group_name  = var.resource_group_name
+  virtual_network_name = azurerm_virtual_network.main.name
+  address_prefixes     = [var.subnet_func_prefix]
+  service_endpoints    = ["Microsoft.Storage"]
+
+  delegation {
+    name = "flex-consumption"
+
+    service_delegation {
+      name    = "Microsoft.App/environments"
+      actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+    }
+  }
 }
 
 # ---------- NSG snet-app : seulement le port de l'app depuis Internet ----------
