@@ -37,6 +37,14 @@ resource "azurerm_linux_virtual_machine" "app" {
   custom_data           = base64encode(templatefile("${path.module}/cloud-init.yaml", { app_port = var.app_port }))
   tags                  = var.tags
 
+  # VM Spot : Azure for Students a un quota de 0 vCPU sur la famille Falsv7
+  # (demande d'augmentation refusée), mais 3 vCPU de quota "low-priority" utilisables en Spot.
+  # Deallocate : en cas d'éviction la VM est éteinte, pas supprimée (on la redémarre).
+  # max_bid_price = -1 : on paie au plus le prix normal, pas d'éviction pour cause de prix.
+  priority        = "Spot"
+  eviction_policy = "Deallocate"
+  max_bid_price   = -1
+
   admin_ssh_key {
     username   = var.admin_username
     public_key = tls_private_key.vm.public_key_openssh
