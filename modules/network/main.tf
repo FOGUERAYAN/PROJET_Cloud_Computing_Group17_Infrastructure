@@ -1,5 +1,5 @@
-# Phase 1 : VNet + 2 sous-réseaux.
-# Phase 2 : NSG (ici), puis IP publique, Load Balancer, passerelle NAT.
+# Réseau : VNet, 2 sous-réseaux et leurs NSG.
+# Le Load Balancer est dans lb.tf, la passerelle NAT dans nat.tf.
 
 resource "azurerm_virtual_network" "main" {
   name                = "vnet-${var.name_suffix}"
@@ -16,8 +16,8 @@ resource "azurerm_subnet" "app" {
   virtual_network_name = azurerm_virtual_network.main.name
   address_prefixes     = [var.subnet_app_prefix]
 
-  # Requis par les règles réseau du compte de stockage (module storage)
-  service_endpoints = ["Microsoft.Storage"]
+  # Requis par les règles réseau du stockage (Hafsatou) et du Key Vault (Maroua)
+  service_endpoints = ["Microsoft.Storage", "Microsoft.KeyVault"]
 }
 
 # Sous-réseau data : points de terminaison privés du stockage et du Key Vault
