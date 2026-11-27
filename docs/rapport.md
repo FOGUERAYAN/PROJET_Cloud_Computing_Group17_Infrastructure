@@ -37,6 +37,7 @@ Projet Cloud Computing, JUNIA ISEN, équipe 17. Rendu : 7 décembre 2026.
 - Identité managée `SystemAssigned` en attendant le module `security` ; elle doit passer en `UserAssigned` (identité de Maroua) pour que les rôles Storage et Key Vault s'appliquent à la bonne identité.
 - Phase de test : `cloud-init` installe Docker et lance nginx sur le port 8000 avec `/health`, pour valider toute la chaîne avant l'image Cap90.
 - **Quota et VM Spot.** L'`apply` a créé le LB, la NAT et le service endpoint, mais pas la VM : l'abonnement Azure for Students a un quota de 0 vCPU sur la famille `Falsv7` (francecentral), la demande d'augmentation a été refusée automatiquement et les autres tailles sont soit sans quota, soit bloquées (`NotAvailableForSubscription`). Le plan ne détectait pas ce quota. Solution retenue (PR #18) : une VM **Spot** de même taille, qui consomme le quota *low-priority* (3 vCPU). Paramètres : `eviction_policy = "Deallocate"` (éviction = VM éteinte, pas supprimée, redémarrage par `az vm start`) et `max_bid_price = -1` (jamais plus que le prix normal).
+- **Validation de la chaîne réseau (27/11/2026).** Après l'`apply` de la VM Spot, `http://cap90-prod-frc.francecentral.cloudapp.azure.com` répond 200 sur `/` (page nginx de test) et sur `/health` (sonde du Load Balancer). Cela valide de bout en bout Internet → IP publique → Load Balancer (80 → 8000) → NSG → VM sans IP publique, ainsi que la sortie par la passerelle NAT (installation de Docker et téléchargement de l'image nginx au démarrage). Le port 8000 n'est pas joignable directement sur le nom DNS : seul le port 80 du Load Balancer est exposé. L'image Cap90 de l'ACR remplacera nginx une fois l'identité et l'ACR de Maroua mergés.
 
 ## 5. Conception du réseau
 
@@ -92,7 +93,7 @@ Le propriétaire des dépôts garde la possibilité de contourner ces règles po
 
 Le workflow `publish.yml` publie l'image dans l'Azure Container Registry après une CI verte sur `main` (ou à la demande). L'authentification GitHub → Azure se fait par **OIDC** (`azure/login`), sans mot de passe : un identifiant fédéré limite l'accès au dépôt applicatif et à la branche `main`. Le workflow s'ignore tant que le nom de l'ACR n'est pas défini. Le détail des actions manuelles est dans [`oidc-github-azure.md`](oidc-github-azure.md).
 
-*Captures d'écran à insérer : pipelines verts, règle de protection, PR en attente de review, réglages de merge, identifiant fédéré.*
+*Captures d'écran à insérer : pipelines verts, règle de protection, PR en attente de review, réglages de merge, identifiant fédéré, page de test de la VM derrière le Load Balancer.*
 
 ## 7. Sécurité, gouvernance et supervision
 
