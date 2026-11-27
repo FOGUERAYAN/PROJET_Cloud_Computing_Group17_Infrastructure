@@ -30,7 +30,13 @@ Projet Cloud Computing, JUNIA ISEN, équipe 17. Rendu : 7 décembre 2026.
 
 ## 4. Conception du calcul
 
-*(Godwin)*
+*(Godwin. Éléments déjà en place, à rédiger)*
+
+- VM Ubuntu 24.04 Gen2 `Standard_F1als_v7` (la série B est bloquée sur Azure for Students), disque NVMe, sans IP publique, dans `snet-app` et membre du pool du Load Balancer.
+- Pas de port 22 : clé SSH générée par Terraform (`tls_private_key`), accès d'urgence par la console série (boot diagnostics). La clé privée n'est que dans le state (backend distant protégé), jamais dans Git.
+- Identité managée `SystemAssigned` en attendant le module `security` ; elle doit passer en `UserAssigned` (identité de Maroua) pour que les rôles Storage et Key Vault s'appliquent à la bonne identité.
+- Phase de test : `cloud-init` installe Docker et lance nginx sur le port 8000 avec `/health`, pour valider toute la chaîne avant l'image Cap90.
+- À vérifier à l'`apply` : disponibilité et quota de `Standard_F1als_v7` avec disque NVMe en francecentral (le `plan` ne le vérifie pas).
 
 ## 5. Conception du réseau
 
@@ -92,10 +98,10 @@ Le workflow `publish.yml` publie l'image dans l'Azure Container Registry après 
 
 *(Maroua. Décisions à intégrer)*
 
-- L'ACR est créé dans le module `security`. Son nom et son *login server* (sortie du module) sont attendus par Rayan (variable `ACR_NAME` du workflow de publication) et par Godwin (VM) : c'est prioritaire.
+- L'ACR `acrcap90prodfrc` est créé dans le module `security` (sorties `acr_name` et `login_server`), utilisé par Rayan (variable `ACR_NAME` du workflow de publication, rôle `AcrPush` pour la CI) et par Godwin (VM).
 - Rôles de l'identité de l'application sur le stockage : `Storage Blob Data Contributor`, `Storage Table Data Contributor` et `Storage Blob Delegator` (liens de partage de 24 h en User Delegation SAS).
-- Key Vault : s'il est limité par un service endpoint plutôt que par un private endpoint dans `snet-data`, il faudra ajouter `Microsoft.KeyVault` en service endpoint sur `snet-app` (à trancher avec Godwin).
-- `SECRET_KEY` de l'application injectée depuis le Key Vault ; chaîne de connexion Application Insights ; choix de l'identité system-assigned ou user-assigned (à confirmer).
+- Key Vault en RBAC, restreint à `snet-app` et aux IP de l'équipe. Le service endpoint `Microsoft.KeyVault` a été ajouté sur `snet-app` (PR #16) ; le Key Vault doit déclarer ce sous-réseau dans ses règles réseau.
+- `SECRET_KEY` de l'application injectée depuis le Key Vault ; chaîne de connexion Application Insights ; identité managée **user-assigned** (décision de Maroua) ; les rôles Storage sont attribués par le module de Hafsatou à partir de `module.security.app_identity_principal_id`.
 
 ## 8. Analyse des coûts
 

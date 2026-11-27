@@ -59,8 +59,9 @@ Noms partagés entre l'application et l'infrastructure. **On ne les modifie pas 
 | Conteneurs Blob | `coffre`, `annonces-photos`, `medias-lille` | Hafsatou |
 | Tables | `profils`, `etapes`, `annonces`, `heures` | Hafsatou |
 | Tags obligatoires | `owner`, `project`, `environment` | Maroua |
-| ACR | créé dans le module `security` ; nom *à définir* (prioritaire : débloque `ACR_NAME` pour la CI et le *login server* pour la VM) | Maroua |
-| Key Vault | nom *à définir* | Maroua |
+| ACR | créé dans le module `security` : `acrcap90prodfrc` (sorties `acr_name` et `login_server`) | Maroua |
+| Identité de l'application | identité managée **user-assigned** du module `security` (sorties `id`, `client_id`, `principal_id`) | Maroua |
+| Key Vault | en RBAC, accès restreint à `snet-app` et aux IP de l'équipe ; nom *à définir* | Maroua |
 | Remote state | groupe `rg-cap90-tfstate`, compte `sttfstatecap90gd`, conteneur `tfstate`, clé `prod.terraform.tfstate` (voir [bootstrap](docs/bootstrap-remote-state.md)) | Godwin |
 
 ### Variables d'environnement du conteneur
@@ -80,13 +81,21 @@ Noms partagés entre l'application et l'infrastructure. **On ne les modifie pas 
 | Sortie | Fournie par |
 |---|---|
 | `module.network.subnet_app_id`, `module.network.subnet_data_id`, `module.network.lb_backend_pool_id`, `module.network.app_fqdn` (et `azurerm_resource_group.main` pour le groupe de ressources) ; sortie racine `app_url` | Godwin |
-| `module.security.app_identity_principal_id` | Maroua |
-| nom et *login server* de l'ACR (noms des sorties *à confirmer*) | Maroua |
+| `module.security.app_identity_id`, `module.security.app_identity_client_id`, `module.security.app_identity_principal_id` (noms exacts à confirmer à l'ouverture de la PR) | Maroua |
+| `acr_name` et `login_server` de l'ACR (noms exacts à confirmer) | Maroua |
+| `module.compute.vm_name`, `module.compute.vm_private_ip`, `module.compute.principal_id` ; sorties racine `vm_name` et `vm_principal_id` | Godwin |
 | `storage_account_name`, `storage_account_id`, `primary_blob_endpoint`, `container_names`, `table_names` | Hafsatou |
 
 Variable racine `deployer_ips` (`list(string)`) : IP du déployeur autorisées sur le compte de stockage. Elle est créée dans la PR du module `storage` (sinon `tflint` signale une variable inutilisée), saisie **sans `/32`** (Azure refuse ce suffixe) et renseignée **hors Git** (`TF_VAR_deployer_ips='["x.x.x.x"]'`).
 
 Le câblage du module `storage` dans le `main.tf` racine est fait par Hafsatou, avec les noms de Godwin (`module.network.subnet_data_id`, `module.network.subnet_app_id`, `azurerm_resource_group.main`). Ordre de merge : réseau (Godwin), puis stockage (Hafsatou), sinon l'`apply` du stockage échoue.
+
+### Calcul (module `compute`)
+
+- VM Ubuntu 24.04 Gen2 `vm-cap90-prod-frc` (`Standard_F1als_v7`, la série B est bloquée sur Azure for Students), carte réseau dans `snet-app` **sans IP publique**, membre du pool `bepool-app`. Aucun port 22 ouvert : la clé SSH est générée par Terraform (`tls_private_key`, présente uniquement dans le state) et l'accès d'urgence se fait par la console série.
+- Identité : `SystemAssigned` pour l'instant. Elle doit passer en `UserAssigned` avec `identity_ids = [module.security.app_identity_id]` quand le module `security` sera mergé, et `vm_principal_id` doit alors venir de `module.security.app_identity_principal_id`.
+- Phase de test : le `cloud-init` lance nginx sur le port 8000 avec une page `/health`, pour valider Internet → LB → NSG → VM avant l'image Cap90 de l'ACR.
+- La VM a besoin de la sortie NAT (installation de Docker, puis pull de l'image) : LB, NAT et VM sont appliqués ensemble.
 
 ### Notes
 
