@@ -31,6 +31,7 @@ module "network" {
   vnet_address_space = var.vnet_address_space
   subnet_app_prefix  = var.subnet_app_prefix
   subnet_data_prefix = var.subnet_data_prefix
+  subnet_func_prefix = var.subnet_func_prefix
 }
 
 # --- P1 : calcul (VM ; la Function viendra ensuite) ---

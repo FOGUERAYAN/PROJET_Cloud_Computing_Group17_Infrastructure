@@ -26,6 +26,11 @@ variable "subnet_data_prefix" {
   type = string
 }
 
+variable "subnet_func_prefix" {
+  description = "Plage du sous-réseau de la Function (Flex Consumption)"
+  type        = string
+}
+
 variable "app_port" {
   description = "Port de l'application Flask (gunicorn)"
   type        = number

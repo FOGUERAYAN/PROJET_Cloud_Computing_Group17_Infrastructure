@@ -11,7 +11,7 @@ variable "environment" {
 }
 
 variable "location" {
-  description = "Région Azure autorisée par l'abonnement Student (à valider)"
+  description = "Région Azure autorisée par l'abonnement Student"
   type        = string
   default     = "francecentral"
 }
@@ -46,4 +46,8 @@ variable "subnet_data_prefix" {
   default     = "10.0.2.0/24"
 }
 
-
+variable "subnet_func_prefix" {
+  description = "Plage du sous-réseau de la Function (Flex Consumption, délégué)"
+  type        = string
+  default     = "10.0.3.0/24"
+}

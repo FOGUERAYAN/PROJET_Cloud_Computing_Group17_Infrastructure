@@ -10,6 +10,11 @@ output "subnet_data_id" {
   value = azurerm_subnet.data.id
 }
 
+output "subnet_func_id" {
+  description = "Sous-réseau délégué de la Function Flex"
+  value       = azurerm_subnet.func.id
+}
+
 output "lb_backend_pool_id" {
   description = "Pool backend du LB, utilisé par la VM du module compute"
   value       = azurerm_lb_backend_address_pool.app.id
